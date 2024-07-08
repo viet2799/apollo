@@ -11,7 +11,7 @@ import Job from "./Job";
 const client = new ApolloClient({
   uri: "https://skilled-cardinal-81.hasura.app/v1/graphql",
   cache: new InMemoryCache(),
-
+  connectToDevTools: true,
   headers: {
     "x-hasura-admin-secret":
       "054rq4t1j0Ce1rbzgaV1KHIf8S5mdvkRso6nRD5dwasDFiYpwbpqTDr0oqTEW4x3",
@@ -21,15 +21,15 @@ const client = new ApolloClient({
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
+    element: <App />
   },
   {
     path: "/person",
-    element: <Person />,
+    element: <Person />
   },
   {
     path: "/",
-    element: <Job />,
+    element: <Job />
   },
 ]);
 
@@ -38,6 +38,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ApolloProvider client={client}>
       <RouterProvider router={router} />
     </ApolloProvider>
-    ,
   </React.StrictMode>
 );

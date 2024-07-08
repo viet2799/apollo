@@ -7,7 +7,7 @@ interface IPerson {
   Name: string;
   Age: number;
   Address: string;
-  JobId: number;
+  JobId: number | undefined;
 }
 
 interface IJob {
@@ -15,15 +15,17 @@ interface IJob {
   id: number;
 }
 
+const defaultPersonData: IPerson = {
+  Id: 0,
+  Name: "",
+  Age: 0,
+  Address: "",
+  JobId: 0,
+};
+
 const Person = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [personData, setPersonData] = useState({
-    Id: 0,
-    Name: "",
-    Age: 0,
-    Address: "",
-    JobId: 1,
-  });
+  const [personData, setPersonData] = useState(defaultPersonData);
   const [isEdit, setIsEdit] = useState(false);
   const GET_PERSON = gql`
     query personsQuery {
@@ -67,6 +69,43 @@ const Person = () => {
     }
   `;
 
+  const UPDATE_PERSON = gql`
+    mutation editMutaion(
+      $Address: String!
+      $Age: Int!
+      $JobId: Int!
+      $Name: String
+      $Id: Int!
+    ) {
+      update_Person(
+        where: { Id: { _eq: $Id } }
+        _set: { Address: $Address, Age: $Age, JobId: $JobId, Name: $Name }
+      ) {
+        returning {
+          Address
+          Age
+          Id
+          JobId
+          Name
+        }
+      }
+    }
+  `;
+
+  const DELETE_PERSON = gql`
+    mutation deletePersonMutation($Id: Int!) {
+      delete_Person(where: { Id: { _eq: $Id } }) {
+        returning {
+          Address
+          Age
+          Id
+          JobId
+          Name
+        }
+      }
+    }
+  `;
+
   const showModal = () => {
     setIsOpen(true);
   };
@@ -78,6 +117,7 @@ const Person = () => {
   const handleCancel = () => {
     setIsOpen(false);
     setIsEdit(false);
+    setPersonData(defaultPersonData);
   };
 
   const columns = [
@@ -102,47 +142,87 @@ const Person = () => {
       key: "JobId",
       render: (jobId: number) => {
         const job = jobQuery?.data?.Job.find((job: IJob) => job.id === jobId);
-        return job?.Name ?? "Unknown";
+        return job?.Name ?? "";
       },
     },
     {
       title: "Action",
       key: "action",
       render: (record: IPerson) => (
-        <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "10px",
+          }}
+        >
           <Button
             type="primary"
             onClick={() => {
-              console.log(record);
+              setPersonData(record);
               setIsEdit(true);
               showModal();
-              setPersonData(record);
             }}
           >
             Edit
           </Button>
-          <Button type="primary" onClick={() => console.log(record)}>
+          <Button
+            type="primary"
+            onClick={async () => {
+              await delete_Person({
+                variables: {
+                  Id: record.Id,
+                },
+              });
+            }}
+          >
             Delete
           </Button>
-        </>
+        </div>
       ),
     },
   ];
   const personQuery = useQuery(GET_PERSON);
   const jobQuery = useQuery(GET_jOB);
-  const [insert_Person, { data, loading, error }] = useMutation(ADD_PERSON);
+  const [insert_Person, dataAddPerson] = useMutation(ADD_PERSON, {
+    refetchQueries: [GET_PERSON, "personsQuery"],
+  });
+  const [update_Person, dataEditPerson] = useMutation(UPDATE_PERSON, {
+    refetchQueries: [GET_PERSON, "personsQuery"],
+  });
 
+  const [delete_Person, dataDeletePerson] = useMutation(DELETE_PERSON, {
+    refetchQueries: [GET_PERSON, "personsQuery"],
+  });
+  console.log(dataEditPerson);
+  console.log(dataEditPerson?.data);
+  console.log(dataAddPerson);
+  console.log(dataDeletePerson);
   const onFinish = async (data: IPerson) => {
-    await insert_Person({
-      variables: {
-        Address: data.Address,
-        Age: data.Age,
-        JobId: data.JobId,
-        Name: data.Name,
-      },
-    });
+    try {
+      isEdit
+        ? await update_Person({
+            variables: {
+              Id: personData.Id,
+              Address: data.Address,
+              Age: data.Age,
+              JobId: data.JobId,
+              Name: data.Name,
+            },
+          })
+        : await insert_Person({
+            variables: {
+              Address: data.Address,
+              Age: data.Age,
+              JobId: data.JobId,
+              Name: data.Name,
+            },
+          });
+    } catch (error) {
+      console.log(error);
+    }
     handleCancel();
-    console.log(data);
   };
 
   const jobOptions = jobQuery?.data?.Job.map((job: IJob) => ({
@@ -155,28 +235,26 @@ const Person = () => {
       <div>
         <Button onClick={showModal}>Add</Button>
       </div>
-      <Table columns={columns} dataSource={personQuery?.data?.Person} />
+      <Table
+        columns={columns}
+        dataSource={personQuery?.data?.Person}
+        loading={personQuery?.loading}
+      />
       <Modal
         title="Basic Modal"
         open={isOpen}
         onOk={handleOk}
         onCancel={handleCancel}
         footer={<></>}
+        destroyOnClose
       >
         <Form
           name="basic"
           labelCol={{ span: 8 }}
           wrapperCol={{ span: 16 }}
           style={{ maxWidth: 600 }}
-          initialValues={{
-            Name: isEdit ? personData.Name : "",
-            Age: isEdit ? personData.Age : 0,
-            Address: isEdit ? personData.Address : "",
-            JobId: isEdit ? personData.JobId : 1,
-          }}
+          initialValues={isEdit ? personData : defaultPersonData}
           onFinish={onFinish}
-          autoComplete="off"
-          clearOnDestroy
         >
           <Form.Item<IPerson> label="Name" name="Name">
             <Input />
